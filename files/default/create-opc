@@ -1,0 +1,181 @@
+#!/opt/opscode/embedded/bin/ruby
+
+require 'chef'
+require 'chef/config'
+require 'chef/rest'
+require 'rest-client'
+require 'mixlib/cli'
+require 'tempfile'
+require 'fileutils'
+
+class OpcBootStrap
+  include Mixlib::CLI
+
+  attr_reader :private_key, :validator_key
+
+  option :output_dir, 
+    :short => "-O OUTPUT_DIR",
+    :long  => "--output OUTPUT_DIR",
+    :description => "Directory to save .pem files to"
+
+  option :config_file, 
+    :short => "-c CONFIG",
+    :long  => "--config CONFIG",
+    :description => "The configuration file to use"
+
+  option :log_level, 
+    :short => "-L LEVEL",
+    :long  => "--log_level LEVEL",
+    :description => "Set the log level (debug, info, warn, error, fatal)",
+    :default => :fatal,
+    :proc => Proc.new { |l| l.to_sym }
+
+  option :username, 
+    :short => "-u USERNAME",
+    :long  => "--username USERNAME",
+    :required => true,
+    :description => "Chef Username"
+
+  option :first_name, 
+    :short => "-f FIRST_NAME",
+    :long  => "--first-name FIRST_NAME",
+    :required => true,
+    :description => "Chef First Name"
+
+  option :last_name, 
+    :short => "-l LAST_NAME",
+    :long  => "--last-name LAST_NAME",
+    :required => true,
+    :description => "Chef Last Name"
+
+  option :email, 
+    :short => "-e EMAIL",
+    :long  => "--email EMAIL",
+    :required => true,
+    :description => "Email"
+
+  option :password, 
+    :short => "-p PASSWORD",
+    :long  => "--password PASSWORD",
+    :required => true,
+    :description => "Password"
+
+  option :organization, 
+    :short => "-o ORGANIZATION ",
+    :long  => "--organization ORGANIZATION",
+    :required => true,
+    :description => "Organization"
+  
+  option :help,
+    :short => "-h",
+    :long => "--help",
+    :description => "Show this message",
+    :on => :tail,
+    :boolean => true,
+    :show_options => true,
+    :exit => 0
+  
+  def account_service
+    @account_service ||= Chef::REST.new('http://localhost:9685', "pivotal", "/etc/opscode/pivotal.pem")
+  end
+
+  def webui_service
+    "http://localhost:9462"
+  end
+
+  def create_user
+    account_exists = true
+    begin
+      account_service.get_rest("users/#{config[:username]}")
+    rescue Net::HTTPServerException => e
+      account_exists = false
+    end
+    if account_exists
+      Chef::Log.info("User #{config[:username]} already exists")
+      return true 
+    end
+    saved_user = account_service.post_rest("users", { 
+      "username" => config[:username], 
+      "first_name" => config[:first_name],
+      "middle_name" => "", 
+      "last_name" => config[:last_name],
+      "display_name" => "#{config[:first_name]} #{config[:last_name]}", 
+      "email" => config[:email], 
+      "password" => config[:password] 
+    })
+    @username = config[:username]
+    @private_key = saved_user["private_key"]
+    return true
+  end
+
+  def login
+    # This first call is just for us to wait till the webui is actually up
+    RestClient::Request.execute(:method => :get, :url => "#{webui_service}/login", :timeout => 90000000)
+    login_page = RestClient.get("#{webui_service}/login") do |response, request, result|
+      response
+    end
+    login_page =~ /<input name="authenticity_token" type="hidden" value="(.+?)"/
+    authenticity_token = $1
+    login_response = RestClient.post("#{webui_service}/login_exec", { :name => config[:username], :password => config[:password], :authenticity_token => authenticity_token }, {:cookies => login_page.cookies}) do |response, request, result| 
+      response 
+    end
+    @cookies = login_response.cookies
+  end
+
+  def new_org
+    org_page = RestClient.get("#{webui_service}/organizations/new", { :cookies => @cookies }) do |response, request, result|
+      response
+    end
+    org_page =~ /<input name="authenticity_token" type="hidden" value="(.+?)"/
+    authenticity_token = $1
+    org_create_response = RestClient.post("#{webui_service}/organizations", { :id => config[:organization], :full_name => config[:organization], :authenticity_token => authenticity_token }, { :cookies => org_page.cookies }) do |response, request, result|
+      response
+    end
+    @cookies = org_create_response.cookies
+  end
+
+  def regenerate_key
+    org_page = RestClient.get("#{webui_service}/organizations", { :cookies => @cookies }) do |response, request, result|
+      response
+    end
+    org_page =~ /<meta content="(.+)" name="csrf-token"/
+    authenticity_token = $1
+    gen_key_response = RestClient.put("#{webui_service}/organizations/#{config[:organization]}/_regenerate_key", { :authenticity_token => authenticity_token }, { :cookies => org_page.cookies }) do |response, request, result|
+      response
+    end
+    @cookies = gen_key_response.cookies
+    @validator_key = "#{gen_key_response}"
+  end
+
+  def create_org
+    login
+    new_org
+    login
+    regenerate_key
+  end
+end
+
+bootstrap = OpcBootStrap.new 
+bootstrap.parse_options
+Chef::Config.from_file(bootstrap.config[:config_file]) if bootstrap.config[:config_file]
+Chef::Config[:rest_timeout]=10000
+Chef::Log.level = bootstrap.config[:log_level]
+bootstrap.create_user
+bootstrap.create_org
+
+if bootstrap.config[:output_dir] && FileUtils.mkdir_p(bootstrap.config[:output_dir])
+  if bootstrap.private_key
+    File.open(
+      "#{bootstrap.config[:output_dir]}/#{bootstrap.config[:username]}.pem",
+      'w') do |f|
+      f.write(bootstrap.private_key) 
+    end
+  end
+  if bootstrap.validator_key
+    File.open(
+      "#{bootstrap.config[:output_dir]}/#{bootstrap.config[:organization]}-validation.pem",
+      'w') do |f|
+      f.write(bootstrap.validator_key) 
+    end 
+  end
+end 

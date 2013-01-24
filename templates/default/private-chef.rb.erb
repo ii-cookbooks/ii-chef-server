@@ -1,0 +1,6 @@
+<% node['private_chef']['config'].each do |k,v| %>
+<%= k %> '<%= v %>'
+<% end -%>
+<% node['private_chef']['advconfig'].each do |k,v| %>
+<%= k %> = '<%= v %>'
+<% end -%>

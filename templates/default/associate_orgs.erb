@@ -1,0 +1,26 @@
+#!/bin/bash
+# Loop through all orgs and associate them with the opscode user as an admin
+cat << EOF | ssh chef /opt/opscode/bin/orgmapper
+admin_user="<%=node['private_chef']['bootstrap']['username']%>"
+admin_org="<%=node['private_chef']['bootstrap']['organization']%>"
+ORGS.reject{|o| o['full_name'] == 'Pre-created'}.map do |o|
+  begin          
+    OrgMapper::Associator.associate_user(o,USERS[admin_user])
+    # o.add_user_to_group('opscode','admins') # this isn't it
+    "#{o.name}"
+  rescue
+    nil
+  end
+  g = o.groups['admins']
+  g.add_actor(USERS[admin_user])
+end
+# Add all users to the training org
+USERS.all.map do |u|
+  begin
+    OrgMapper::Associator.associate_user(ORGS[admin_org],u)
+    ORGS[admin_org].groups['users'].add_actor(u)
+  rescue
+    nil
+  end
+end
+EOF

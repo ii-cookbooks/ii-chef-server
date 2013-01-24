@@ -1,0 +1,5 @@
+#!/bin/bash
+# Loop through all orgs and associate them with the opscode user as an admin
+cat << EOF | ssh chef /opt/opscode/bin/orgmapper
+puts ORGS.reject{|o| o['full_name'] == 'Pre-created'}.map(&:name)
+EOF

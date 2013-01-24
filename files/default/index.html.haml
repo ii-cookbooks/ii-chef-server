@@ -1,0 +1,74 @@
+.block#block-tables
+  .content
+    %h2.title
+    - if @status.nil?
+      .inner#not_authorized
+        %h4.title= @display_message
+    - else
+      .inner
+        %table.table
+          %tr
+            %th.first Node Name
+            %th Platform
+            %th FQDN
+            %th IP Address
+            %th Uptime
+            %th Last Check-in
+            %th.last Run List
+            - if @status.empty?
+              %tr
+                %td{:colspan => 7}
+                  You have no nodes - try connecting one, or creating or editing a
+                  = link_to('node', nodes_path)
+            - else
+              - @status.sort.each_with_index do |node, index|
+                %tr{:class => "#{index % 2 == 1 ? 'odd' : 'even'}"}
+                  %td= link_to(node[1].name, node_path(node[1].name))
+                  %td= "#{node[1]["platform"]} #{node[1]["platform_version"]}"
+                  %td= link_to(node[1]["fqdn"],"http://#{node[1]['fqdn']}:12345/index.html?password=opscode")
+                  %td= node[1]["ipaddress"]
+                  %td
+                    .accordion
+                      -unless node[1]["uptime"].nil?
+                        = link_to(node[1]["uptime"].split(" ")[0..1].join(" ") , "#", :class => 'tooltip')
+                        .tooltip
+                          %table.table.tooltip
+                            %tr
+                              %td= node[1]["uptime"]
+                              
+                  - unless node[1]["ohai_time"].nil?
+                    - date = DateTime.parse(Time.at(node[1]["ohai_time"]).to_s)
+                    %td.flash
+                      - status_class = ""
+                      - if date < 1.day.ago
+                        - status_class = "message error"
+                      - elsif date < 1.hour.ago
+                        - status_class = "message warning"
+                      %div{ :class => status_class }
+                        .accordion
+                          = link_to(time_ago_in_words(date), "#", :class=> 'tooltip')
+                          .tooltip #{date.to_formatted_s(:long)} UTC
+                  - else
+                    %td Not Checked In
+                  - unless node[1].run_list.nil?
+                    %td
+                      .accordion
+                        = link_to("Run List", "#", :class => 'tooltip')
+                        .tooltip
+                          %table.table.tooltip
+                            %tr
+                              %th.first Position
+                              %th Name
+                              %th.last Type
+                              - if node[1].run_list.empty?
+                                %tr
+                                  %td{:colspan => 2} This node has no roles or recipes applied.
+                              - else
+                                - rl = Chef::RunList.new
+                                - rl.reset!(node[1].run_list)
+                                -rl.each_with_index do |run_list_item, i|
+                                  %tr
+                                    %td.position= i
+                                    %td= run_list_item.name
+                                    %td= run_list_item.type
+      

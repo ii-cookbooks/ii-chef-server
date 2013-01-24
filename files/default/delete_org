@@ -1,0 +1,46 @@
+#!/bin/bash
+# Loop through all orgs and associate them with the opscode user as an admin
+user=$1
+cat << EOF | ssh chef /opt/opscode/bin/orgmapper
+
+def delete_org(org_name)
+  dissociate_users(org_name)
+  puts "destroying #{org_name}"
+  ORGS[org_name].destroy
+end
+
+def usernames_in_org(org_name)
+  OrganizationUser.users_for_organization(ORGS[org_name]).map do |uid|
+    Opscode::Models::User.get(uid)["username"]
+  end
+end
+
+def dissociate_users(org_name)
+  org = ORGS[org_name]
+  org_usersnames = usernames_in_org(org_name)
+  puts "removing #{org_usersnames.size} users from #{org_name}"
+  org_usersnames.each do |username|
+    puts "dissociating #{username}"
+    begin
+      OrgMapper::Dissociator.dissociate_user(org, USERS[username])
+    rescue RestClient::Forbidden
+      # if we get a 403 it means the user is not in the global admins
+      # group and so we do not need to go through orgmapper's
+      # dissociator. Instead, we can just nuke the org
+      puts "caught 403, attempting to delete OrganizationUser object instead"
+      org_id = org.id
+      user_id = USERS[username].id
+      org_user = OrganizationUser.by_user(:key => user_id).find do |ou|
+        ou["organization"] == org_id
+      end
+      puts org_user.inspect
+      org_user.destroy
+      puts "OrganizationUser object for #{username} deleted"
+    end
+  end
+end
+delete_org('${user}') rescue nil
+USERS.mapper.destroy(USERS['${user}']) if USERS['${user}'] rescue nil
+ORGS['${user}'].destroy if ORGS['${user}'] rescue nil
+# ORGS['${user}'].destroy if ORGS['${user}']
+EOF

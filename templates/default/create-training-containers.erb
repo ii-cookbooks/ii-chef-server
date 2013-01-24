@@ -1,0 +1,209 @@
+#!/opt/chef/embedded/bin/ruby
+require 'timeout'
+require 'thread'
+
+# I really wish I knew a way to get a list of orgs my account was associated without
+# visiting the webui
+require 'rubygems'
+require 'mechanize'
+require 'mixlib/cli'
+require 'fileutils'
+require 'chef/config'
+require 'chef/rest'
+require 'chef/api_client'
+require 'chef/knife'
+Chef::Knife::SubcommandLoader.new(nil).load_commands # needed to load knife-acl knife plugin
+
+
+
+Chef::Config.from_file(File.expand_path("/root/.chef/knife.rb"))
+
+agent = Mechanize.new
+agent.agent.http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+
+username=<%=node['private_chef']['bootstrap']['username']%> # these are now 'hardcoded' after the template is evaled
+password=<%=node['private_chef']['bootstrap']['password']%> # should probably pull these when ran
+
+lp=agent.get('https://chef/login')
+lf=lp.forms.first
+lf['name']=username
+lf['password']=password
+p = lf.submit
+agent.page.link_with(:href => /organizations/).click
+orgs = agent.page.search(
+  '//table[@id="all_associated_organizations"]//tr/td[@class="name_column"]/text()'
+  ).map(&:to_s).reject{|o| o =~ /(training)/}
+authenticity_token = agent.page.search(
+  '//meta[@name="csrf-token"]/@content').text
+
+# chef_rest = Chef::REST.new(Chef::Config[:chef_server_url])
+# students = chef_rest.get_rest("users").map{
+#   |u| u["user"]["username"] }.reject{
+#   |u| u =~ /(pivotal)|(opscode)/}#.each do |student|
+
+
+def build_workstation(name)
+  puts "Building #{name}"
+  system("lxc-clone -o model-workstation -n #{name}")
+  IO.popen("lxc-start -d -n #{name}")
+end
+
+def build_target(name)
+  puts "Building #{name}"
+  system("lxc-clone -o model-target -n #{name}")
+  # twe need the above to finish before we start it
+  # system("lxc-clone -o model-target -n #{name}")
+  IO.popen("lxc-start -d -n #{name}")
+end
+
+def build_centos_target(name)
+  puts "Building #{name}"
+  system("lxc-clone -o model-centos -n #{name}")
+  # twe need the above to finish before we start it
+  # system("lxc-clone -o model-target -n #{name}")
+  IO.popen("lxc-start -d -n #{name}")
+end
+
+threads = []
+orgmap = {}
+orgs.each do |org_name|
+  org_rest = Chef::REST.new(Chef::Config[:chef_server_url].sub('/training',"/#{org_name}"))
+  student =  org_rest.get_rest("groups/admins")['users'].reject{|u| u =~ /(#{username})|(pivotal)/}.first
+  orgmap[org_name]=student
+  threads << Thread.new do
+    build_workstation("#{student}-workstation")
+    #build_target("#{org_name}-ubuntu")
+    #build_centos_target("#{org_name}-centos")
+    build_target("#{org_name}-target1")
+    build_target("#{org_name}-target2")
+  end
+end
+
+# wait for all those to spawn
+threads.each { |t| t.join }
+
+# then write regenerate the validation.pem and create a workstation-admin client if needed
+# would be interesting to do this in a databag via chef-client on the main host
+
+orgs.each do |org_name|
+  student = orgmap[org_name]
+  client_name = "#{student}-knife" # studentname-workstation
+  validator_pem_file = "/home/lxc/#{student}-workstation/rootfs/home/#{node['workstation']['username']}/.chef/#{org_name}-validator.pem"
+  client_pem_file = "/home/lxc/#{student}-workstation/rootfs/home/#{node['workstation']['username']}/.chef/#{org_name}-knife.pem"
+  knife_rb_file = "/home/lxc/#{student}-workstation/rootfs/home/#{node['workstation']['username']}/.chef/knife.rb"
+
+  # start pointing at their org... we are an admin in it
+  Chef::Config[:chef_server_url].sub!(/organizations\/.*$/,"organizations/#{org_name}")
+
+  # However it sems you can only create/regen org pems via the webui
+  agent.get('https://chef.training/organizations')
+  # select this org
+  if agent.page.search('//h1/a[@href="/nodes"]/text()').text != org_name
+    agent.page.link_with(:href => /organizations\/#{org_name}\/select/).click
+  end
+
+  if not ::File.exists? validator_pem_file
+    # regenerate it's validation key
+    org_pem = agent.post(
+      "https://chef.training/organizations/#{org_name}/_regenerate_key",
+      {'_method' => 'put','authenticity_token' => authenticity_token})
+    # write it to disk
+    open(validator_pem_file,'w').write(org_pem.body)
+    ::File.chown(1000,1000,validator_pem_file)
+  end
+
+  if not ::File.exists? client_pem_file
+    
+  #   browser = Mechanize.new
+  #   browser.agent.http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+  #   browser.post(
+  #     "#{config[:webui_url]}/users",
+  #     {
+  #       'user[username]' => user_name,
+  #       'user[first_name]' => user_name,
+  #       'user[last_name]' => org_name,
+  #       'user[email]' => "#{user_name}@#{org_name}.training"
+  #       'user[password]' => "opscode",
+  #     'user[password_confirmation]' => "opscode",
+  #       'commit' => 'Submit'
+  #     })
+    
+  #   account_created = browser.page.search(
+  #     '//div[@class="message notice"]/p/text()[contains(.,"Your Private Chef user account has been created.")]'
+  #     ).first
+  #       # A bit of help if things don't go well
+
+  #   if not account_created
+  #     validation_errors = browser.page.search '//span[@class="validation-error"]/..'
+  #     error_messages = browser.page.search '//div[@class="message error"]/p'
+
+  #     if validation_errors.count > 0
+  #       validation_errors.each do |ve|
+  #         puts ve.text.gsub /\W+/, ' ' # get rid of whitespace
+  #       end
+  #     elsif error_messages.count > 0
+  #       error_messages.each do |em|
+  #         puts em.text.gsub /\W+/, ' ' # get rid of whitespace
+  #       end
+  #     else
+  #       puts em.body
+  #     end
+  #     raise 'Account not created'
+  #   end
+
+  #   user_regen_url = browser.page.link_with(:href => /_regen_key/).href
+  #   authenticity_token = browser.page.search(
+  #     '//meta[@name="csrf-token"]/@content').text
+    
+  #   FileUtils.mkdir_p config[:output_dir]
+  #   @user_pem=browser.post("#{config[:webui_url]}/users/#{config[:username]}/_regen_key",
+  #     {'authenticity_token' => authenticity_token})
+    
+
+    org_rest = Chef::REST.new(Chef::Config[:chef_server_url])
+    if not org_rest.get_rest('clients').keys.include? client_name
+      client = Chef::ApiClient.new
+      client.name client_name
+      client.admin true
+      result = client.save
+      client_pem = result['private_key']
+    else
+      client = Chef::ApiClient.reregister(client_name)
+      client_pem = client.private_key
+    end
+
+    # adding that new client as an admin
+    # Dir.mktmpdir do |d|
+    #   Dir.chdir d
+    #   puts d
+    #   OpscodeAcl::ActorMap.new.run
+    #   OpscodeAcl::GroupAddActor.new(['admins',client_name]).run
+    # end
+  
+    # write it to disk
+    open(client_pem_file,'w').write(client_pem)
+    ::File.chown(1000,1000,client_pem_file)
+  end
+
+
+  if not ::File.exists? knife_rb_file
+    knife_rb = <<-EOC
+    current_dir = File.dirname(File.realdirpath(__FILE__))
+    ENV['ORG'] ||= '#{org_name}'
+    log_level                :info
+    log_location             STDOUT
+    node_name                "#{client_name}"
+    client_key               "\#{current_dir}/\#{ENV['ORG']}-knife.pem"
+    validation_key           "\#{current_dir}/\#{ENV['ORG']}-validator.pem"
+    chef_server_url          "https://chef.training/organizations/\#{ENV['ORG']}"
+    validation_client_name   "\#{ENV['ORG']}-validator"
+    cookbook_path            ["/home/opscode/chef-repo/cookbooks"]
+    cache_type               'BasicFile'
+    cache_options( :path => "\#{ENV['HOME']}/.chef/checksums" )
+    EOC
+    open(knife_rb_file,'w').write(knife_rb)
+    ::File.chown(1000,1000,knife_rb_file)
+  end
+  
+end
+  
