@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 default['private_chef']['config']['topology'] = 'standalone'
-default['private_chef']['config']['api_fqdn'] = "chef.#{node['resolver']['search']}"
+
+default['private_chef']['config']['api_fqdn'] = case node['resolver']
+                                                when nil # we aren't using the resolver cookbook
+                                                  'chef.localdomain'
+                                                else # we are using the resolver cookbook
+                                                  "chef.#{node['resolver']['search']}"
+                                                end
 default['private_chef']['advconfig']["opscode_org_creator['max_workers']"] = '10'
 default['private_chef']['advconfig']["opscode_org_creator['ready_org_depth']"] = '50'
 default['private_chef']['advconfig']["opscode_webui['worker_processes']"] = '8'
