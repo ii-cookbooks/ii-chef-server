@@ -54,7 +54,7 @@ end
 
 template "#{srv_root}/etc/opscode/private-chef.rb" do
   source "private-chef.rb.erb"
-  cookbook 'private-chef'
+  # cookbook 'private-chef'
   owner "root"
   owner "root"
   mode 00644
