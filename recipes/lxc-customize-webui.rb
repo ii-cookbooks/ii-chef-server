@@ -9,4 +9,5 @@ cookbook_file "#{srv_root}/opt/opscode/embedded/service/opscode-webui/app/views/
 cookbook_file "#{srv_root}/opt/opscode/embedded/service/opscode-webui/app/views/layouts/application.html.haml"
 cookbook_file "#{srv_root}/opt/opscode/embedded/service/opscode-webui/app/controllers/organizations_controller.rb" do
   notifies :run, "execute[restart webui via ssh]"
+  mode 0644
 end
