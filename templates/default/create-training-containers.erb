@@ -88,9 +88,9 @@ threads.each { |t| t.join }
 orgs.each do |org_name|
   student = orgmap[org_name]
   client_name = "#{student}-knife" # studentname-workstation
-  validator_pem_file = "/home/lxc/#{student}-workstation/rootfs/home/#{node['workstation']['username']}/.chef/#{org_name}-validator.pem"
-  client_pem_file = "/home/lxc/#{student}-workstation/rootfs/home/#{node['workstation']['username']}/.chef/#{org_name}-knife.pem"
-  knife_rb_file = "/home/lxc/#{student}-workstation/rootfs/home/#{node['workstation']['username']}/.chef/knife.rb"
+  validator_pem_file = "/home/lxc/#{student}-workstation/rootfs/home/<%=node['workstation']['username'] %>/.chef/#{org_name}-validator.pem"
+  client_pem_file = "/home/lxc/#{student}-workstation/rootfs/home/<%= node['workstation']['username'] %>/.chef/#{org_name}-knife.pem"
+  knife_rb_file = "/home/lxc/#{student}-workstation/rootfs/home/<%= node['workstation']['username'] %>/.chef/knife.rb"
 
   # start pointing at their org... we are an admin in it
   Chef::Config[:chef_server_url].sub!(/organizations\/.*$/,"organizations/#{org_name}")
