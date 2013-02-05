@@ -98,8 +98,14 @@ orgs.each do |org_name|
   # However it sems you can only create/regen org pems via the webui
   agent.get('https://chef.training/organizations')
   # select this org
+  # if a user has multiple orgs this may fail?
+  # we need something that doesn't depend on the webui
   if agent.page.search('//h1/a[@href="/nodes"]/text()').text != org_name
-    agent.page.link_with(:href => /organizations\/#{org_name}\/select/).click
+    begin
+      agent.page.link_with(:href => /organizations\/#{org_name}\/select/).click
+    rescue
+      puts "#{org_name} already selected?"
+    end
   end
 
   if not ::File.exists? validator_pem_file
