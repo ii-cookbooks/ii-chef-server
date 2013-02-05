@@ -16,8 +16,8 @@ default['private_chef']['advconfig']["opscode_solr['commit_interval']"] = 10 * 1
 
 # this could be migrated to another area
 default['private_chef']['bootstrap']['email'] = 'ii@instantinfrastructure.org'
-default['private_chef']['bootstrap']['username'] = 'ii'
-default['private_chef']['bootstrap']['password'] = 'ii123'
+default['private_chef']['bootstrap']['username'] = 'opscode'
+default['private_chef']['bootstrap']['password'] = 'opscode123'
 default['private_chef']['bootstrap']['firstname'] = 'Instant'
 default['private_chef']['bootstrap']['lastname'] = 'Infrastructure'
 default['private_chef']['bootstrap']['organization'] = 'training'
