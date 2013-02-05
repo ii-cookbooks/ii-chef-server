@@ -21,8 +21,8 @@ Chef::Config.from_file(File.expand_path("/root/.chef/knife.rb"))
 agent = Mechanize.new
 agent.agent.http.verify_mode = OpenSSL::SSL::VERIFY_NONE
 
-username=<%=node['private_chef']['bootstrap']['username']%> # these are now 'hardcoded' after the template is evaled
-password=<%=node['private_chef']['bootstrap']['password']%> # should probably pull these when ran
+username='<%=node['private_chef']['bootstrap']['username']%>' # these are now 'hardcoded' after the template is evaled
+password='<%=node['private_chef']['bootstrap']['password']%>' # should probably pull these when ran
 
 lp=agent.get('https://chef/login')
 lf=lp.forms.first
