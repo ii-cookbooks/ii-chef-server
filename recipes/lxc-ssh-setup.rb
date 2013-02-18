@@ -12,7 +12,7 @@ file "/root/.ssh/config" do
   not_if {::File.exists? "/root/.ssh/config"}
 end
 
-srv_root = "/var/lib/lxc/#{node['private_chef']['lxc']['container']}/rootfs"
+srv_root = "/var/lib/lxc/#{node['model_chef']['lxc']['container']}/rootfs"
 directory "#{srv_root}/root/.ssh" do
   mode '0700'
 end

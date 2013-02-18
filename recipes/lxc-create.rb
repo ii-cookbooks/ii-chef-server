@@ -1,4 +1,4 @@
-chef_container = node['private_chef']['lxc']['container']
+chef_container = node['model_chef']['lxc']['container']
 srv_root = "/var/lib/lxc/#{chef_container}/rootfs"
 
 execute "lxc-create -n #{chef_container} -t training -- -a amd64" do
