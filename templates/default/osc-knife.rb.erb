@@ -1,0 +1,25 @@
+# this config file can be in /root/.chef as well now
+#current_dir = '/root/chef-repo/.chef' #File.dirname(__FILE__)
+
+current_dir = File.dirname(__FILE__)
+rest_timeout             60*10 # ten minutes
+log_level                :info
+log_location             STDOUT
+
+node_name                "admin"
+client_key               "#{current_dir}/admin.pem"
+validation_client_name   "chef-validator"
+validation_key           "#{current_dir}/chef-validator.pem"
+
+cookbook_path            ["#{current_dir}/../cookbooks"]
+cache_type               'BasicFile'
+cache_options( :path => "#{ENV['HOME']}/.chef/checksums" )
+
+if not ENV['CHEF_SERVER']
+  ENV['CHEF_SERVER'] = '<%=@chef_server%>'
+  #validation_key           "#{current_dir}/#{ENV['CHEF_SERVER']}-validator.pem"
+else
+  #validation_key           "/home/lxc/#{ENV['ORG']}-workstation/rootfs/home/opscode/.chef/#{ENV['ORG']}-validator.pem"
+  # cookbook_path            ["/home/lxc/#{ENV['ORG']}-workstation/root_fs/home/opscode/chef-repo/cookbooks"]
+end
+chef_server_url          "https://#{ENV['CHEF_SERVER']}"

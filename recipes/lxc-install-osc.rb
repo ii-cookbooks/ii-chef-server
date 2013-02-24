@@ -43,7 +43,7 @@ end
 
 execute "install opensource chef" do
   command "ssh root@#{node['model_chef']['config']['api_fqdn']} dpkg -i /root/#{node['chef_server']['package']['filename']}"
-  not_if {File.exists? "#{srv_root}/opt/opscode/bin"}
+  creates "#{srv_root}/opt/chef-server/version-manifest.txt"
 end
 
 directory "#{srv_root}/etc/opscode" do
@@ -64,8 +64,8 @@ end
 
 execute "chef-server-ctl reconfigure via ssh" do
   command "ssh root@#{node['model_chef']['config']['api_fqdn']} chef-server-ctl reconfigure"
-  action :nothing
-  creates "#{srv_root}/opt/chef-server/embedded/service/erchef/etc/app.config"
+  # action :nothing
+  creates "#{srv_root}/var/opt/chef-server/bootstrapped"
   # this seems to fail a few times
 end
 

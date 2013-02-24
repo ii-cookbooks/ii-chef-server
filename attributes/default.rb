@@ -24,11 +24,11 @@ default['private_chef']['bootstrap']['organization'] = 'training'
 
 default['private_chef']['lxc']['container'] = 'chef'
 
-default['model_chef']['lxc']['container'] = 'model_chef'
+default['model_chef']['lxc']['container'] = 'model-chef'
 
 default['model_chef']['config']['api_fqdn'] = case node['resolver']
                                                 when nil # we aren't using the resolver cookbook
-                                                  'model_chef.localdomain'
+                                                  'model-chef.localdomain'
                                                 else # we are using the resolver cookbook
-                                                  "model_chef.#{node['resolver']['search']}"
+                                                  "model-chef.#{node['resolver']['search']}"
                                                 end
