@@ -1,5 +1,5 @@
 # this config file can be in /root/.chef as well now
-current_dir = '/root/chef-repo/.chef' #File.dirname(__FILE__)
+current_dir = File.dirname(__FILE__) #'/root/chef-repo/.chef' 
 rest_timeout             60*10 # ten minutes
 log_level                :info
 log_location             STDOUT

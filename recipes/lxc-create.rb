@@ -2,7 +2,8 @@ chef_container = node['model_chef']['lxc']['container']
 srv_root = "/var/lib/lxc/#{chef_container}/rootfs"
 
 execute "lxc-create -n #{chef_container} -t training -- -a amd64" do
-  not_if "lxc-ls | grep #{chef_container}"
+  creates srv_root
+  #not_if "lxc-ls | grep #{chef_container}"
 end
 
 execute "lxc-start -d -n #{chef_container}" do
