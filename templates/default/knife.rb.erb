@@ -20,3 +20,5 @@ else
 end
 chef_server_url          "https://chef.training/organizations/#{ENV['ORG']}"
 validation_client_name   "#{ENV['ORG']}-validator"
+data_bag_path "#{current_dir}/../data_bags"
+file_cache_path "#{current_dir}/cache"

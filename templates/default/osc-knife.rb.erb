@@ -23,3 +23,5 @@ else
   # cookbook_path            ["/home/lxc/#{ENV['ORG']}-workstation/root_fs/home/opscode/chef-repo/cookbooks"]
 end
 chef_server_url          "https://#{ENV['CHEF_SERVER']}"
+data_bag_path "#{current_dir}/../data_bags"
+file_cache_path "#{current_dir}/cache"

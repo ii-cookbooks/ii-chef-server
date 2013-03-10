@@ -1,11 +1,11 @@
 opc_file = File.join(Chef::Config[:file_cache_path], node['private_chef']['package_file'])
-if node['private_chef']['package_temp_url']
-  remote_file opc_file do
-    source url
-    checksum node['private_chef']['package_checksum']
-    not_if {::File.exists? opc_file}
-  end
-end
+# if node['private_chef']['package_temp_url']
+#   remote_file opc_file do
+#     source node['private_chef']['package_temp_url']
+#     checksum node['private_chef']['package_checksum']
+#     not_if {::File.exists? opc_file}
+#   end
+# end
 
 cs = search('chef_server',"*:*")
 node.normal['chef_server']['version']=cs.map{|v| v['version']}.flatten.uniq.sort.last
